@@ -27,9 +27,4 @@ public class User {
     @CollectionTable(name = "user_authorities", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "authority")
     private Set<Authority> authorities;
-
-    public User() {
-        authorities = new HashSet<>();
-        authorities.add(Authority.CUSTOMER);
-    }
 }

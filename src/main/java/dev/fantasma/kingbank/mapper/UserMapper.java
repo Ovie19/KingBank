@@ -1,4 +1,4 @@
-package dev.fantasma.kingbank.Mapper;
+package dev.fantasma.kingbank.mapper;
 
 import dev.fantasma.kingbank.data.models.User;
 import dev.fantasma.kingbank.dtos.request.RegisterUserRequest;

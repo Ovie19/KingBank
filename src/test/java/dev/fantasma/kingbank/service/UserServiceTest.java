@@ -1,6 +1,6 @@
 package dev.fantasma.kingbank.service;
 
-import dev.fantasma.kingbank.Mapper.UserMapper;
+import dev.fantasma.kingbank.mapper.UserMapper;
 import dev.fantasma.kingbank.data.models.User;
 import dev.fantasma.kingbank.data.repositories.UserRepository;
 import dev.fantasma.kingbank.dtos.request.RegisterUserRequest;
@@ -14,11 +14,15 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.Set;
+
+import static dev.fantasma.kingbank.data.models.Authority.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -53,7 +57,7 @@ class UserServiceTest {
     void registerUserRequestIsNull_registerUserThrowsException() {
         InvalidRequestException exception = assertThrows(
                 InvalidRequestException.class,
-                () -> userService.register(null)
+                () -> userService.registerUser(null)
         );
         assertEquals("Request cannot be null", exception.getMessage());
     }
@@ -65,7 +69,7 @@ class UserServiceTest {
         registerUserRequest.setUsername(username);
         InvalidRequestException ex = assertThrows(
                 InvalidRequestException.class,
-                () -> userService.register(registerUserRequest)
+                () -> userService.registerUser(registerUserRequest)
         );
         assertEquals("Username is required", ex.getMessage());
     }
@@ -86,7 +90,7 @@ class UserServiceTest {
         registerUserRequest.setUsername(username);
         InvalidRequestException exception = assertThrows(
                 InvalidRequestException.class,
-                () -> userService.register(registerUserRequest)
+                () -> userService.registerUser(registerUserRequest)
         );
         assertEquals(expectedMessage, exception.getMessage());
     }
@@ -98,7 +102,7 @@ class UserServiceTest {
         registerUserRequest.setPassword(password);
         InvalidRequestException exception = assertThrows(
                 InvalidRequestException.class,
-                () -> userService.register(registerUserRequest)
+                () -> userService.registerUser(registerUserRequest)
         );
         assertEquals("Password must be at least 8 characters", exception.getMessage());
     }
@@ -110,7 +114,7 @@ class UserServiceTest {
         registerUserRequest.setFirstName(firstName);
         InvalidRequestException exception = assertThrows(
                 InvalidRequestException.class,
-                () -> userService.register(registerUserRequest)
+                () -> userService.registerUser(registerUserRequest)
         );
         assertEquals("First name cannot be blank", exception.getMessage());
     }
@@ -122,19 +126,19 @@ class UserServiceTest {
         registerUserRequest.setLastName(lastName);
         InvalidRequestException exception = assertThrows(
                 InvalidRequestException.class,
-                () -> userService.register(registerUserRequest)
+                () -> userService.registerUser(registerUserRequest)
         );
         assertEquals("Last name cannot be blank", exception.getMessage());
     }
 
     @Test
-    void usernameAlreadyExist_registerWithUsernameThrowsException() {
+    void usernameAlreadyExist_registerUserWithUsernameThrowsException() {
         when(userRepository.existsByUsername(registerUserRequest.getUsername().trim().toLowerCase()))
                 .thenReturn(true);
 
         InvalidRequestException exception = assertThrows(
                 InvalidRequestException.class,
-                () -> userService.register(registerUserRequest)
+                () -> userService.registerUser(registerUserRequest)
         );
 
         assertEquals("Username already exists.", exception.getMessage());
@@ -143,30 +147,116 @@ class UserServiceTest {
     }
 
     @Test
-    void registerUserSuccessfulTest() throws KingBankException {
+    void registerCustomerSuccessfulTest() throws KingBankException {
         User mappedUser = new User();
         mappedUser.setUsername(registerUserRequest.getUsername().trim().toLowerCase());
         mappedUser.setName("Franklin Saint");
 
         User savedUser = new User();
-        savedUser.setId("some-generated-id");
+        savedUser.setId("some-random-uuid");
         savedUser.setUsername(registerUserRequest.getUsername().trim().toLowerCase());
         savedUser.setName("Franklin Saint");
 
         UserResponse expectedResponse = new UserResponse();
-        expectedResponse.setId("some-generated-id");
+        expectedResponse.setId("some-random-uuid");
         expectedResponse.setUsername(registerUserRequest.getUsername().trim().toLowerCase());
 
-        when(userRepository.existsByUsername(anyString())).thenReturn(false);
         when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+        when(userRepository.existsByUsername(anyString())).thenReturn(false);
         when(userMapper.toEntity(registerUserRequest)).thenReturn(mappedUser);
         when(userRepository.save(mappedUser)).thenReturn(savedUser);
         when(userMapper.toResponse(savedUser)).thenReturn(expectedResponse);
 
-        UserResponse response = userService.register(registerUserRequest);
-
+        UserResponse response = userService.registerUser(registerUserRequest);
         assertNotNull(response);
         assertNotNull(response.getId());
-        assertEquals(registerUserRequest.getUsername().trim().toLowerCase(), response.getUsername());
+        assertEquals("ben999", response.getUsername());
+
+        verify(userRepository).existsByUsername("ben999");
+        verify(passwordEncoder).encode("a23@#679aksh");
+        verify(userMapper).toEntity(registerUserRequest);
+        verify(userMapper).toResponse(savedUser);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+
+        User capturedUser = captor.getValue();
+        assertEquals(Set.of(ROLE_CUSTOMER), capturedUser.getAuthorities());
+    }
+
+    @Test
+    void registerTellerSuccessfulTest() throws KingBankException {
+        User mappedUser = new User();
+        mappedUser.setUsername(registerUserRequest.getUsername().trim().toLowerCase());
+        mappedUser.setName("Franklin Saint");
+
+        User savedUser = new User();
+        savedUser.setId("some-random-uuid");
+        savedUser.setUsername(registerUserRequest.getUsername().trim().toLowerCase());
+        savedUser.setName("Franklin Saint");
+
+        UserResponse expectedResponse = new UserResponse();
+        expectedResponse.setId("some-random-uuid");
+        expectedResponse.setUsername(registerUserRequest.getUsername().trim().toLowerCase());
+
+        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+        when(userRepository.existsByUsername(anyString())).thenReturn(false);
+        when(userMapper.toEntity(registerUserRequest)).thenReturn(mappedUser);
+        when(userRepository.save(mappedUser)).thenReturn(savedUser);
+        when(userMapper.toResponse(savedUser)).thenReturn(expectedResponse);
+
+        UserResponse response = userService.registerTeller(registerUserRequest);
+        assertNotNull(response);
+        assertNotNull(response.getId());
+        assertEquals("ben999", response.getUsername());
+
+        verify(userRepository).existsByUsername("ben999");
+        verify(passwordEncoder).encode("a23@#679aksh");
+        verify(userMapper).toEntity(registerUserRequest);
+        verify(userMapper).toResponse(savedUser);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+
+        User capturedUser = captor.getValue();
+        assertEquals(Set.of(ROLE_TELLER), capturedUser.getAuthorities());
+    }
+
+    @Test
+    void registerAdminSuccessfulTest() throws KingBankException {
+        User mappedUser = new User();
+        mappedUser.setUsername(registerUserRequest.getUsername().trim().toLowerCase());
+        mappedUser.setName("Franklin Saint");
+
+        User savedUser = new User();
+        savedUser.setId("some-random-uuid");
+        savedUser.setUsername(registerUserRequest.getUsername().trim().toLowerCase());
+        savedUser.setName("Franklin Saint");
+
+        UserResponse expectedResponse = new UserResponse();
+        expectedResponse.setId("some-random-uuid");
+        expectedResponse.setUsername(registerUserRequest.getUsername().trim().toLowerCase());
+
+        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+        when(userRepository.existsByUsername(anyString())).thenReturn(false);
+        when(userMapper.toEntity(registerUserRequest)).thenReturn(mappedUser);
+        when(userRepository.save(mappedUser)).thenReturn(savedUser);
+        when(userMapper.toResponse(savedUser)).thenReturn(expectedResponse);
+
+        UserResponse response = userService.registerAdmin(registerUserRequest);
+        assertNotNull(response);
+        assertNotNull(response.getId());
+        assertEquals("ben999", response.getUsername());
+
+        verify(userRepository).existsByUsername("ben999");
+        verify(passwordEncoder).encode("a23@#679aksh");
+        verify(userMapper).toEntity(registerUserRequest);
+        verify(userMapper).toResponse(savedUser);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+
+        User capturedUser = captor.getValue();
+        assertEquals(Set.of(ROLE_ADMIN), capturedUser.getAuthorities());
     }
 }
